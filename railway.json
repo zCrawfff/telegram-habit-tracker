@@ -1,0 +1,14 @@
+{
+  "build": {
+    "buildCommand": "pip install -r requirements.txt",
+    "startCommand": "python bot.py"
+  },
+  "env": {
+    "TELEGRAM_BOT_TOKEN": "",
+    "SUPABASE_URL": "",
+    "SUPABASE_KEY": "",
+    "STRIPE_SECRET_KEY": "",
+    "STRIPE_PRICE_ID": "",
+    "STRIPE_WEBHOOK_SECRET": ""
+  }
+}
