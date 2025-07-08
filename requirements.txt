@@ -1,6 +1,7 @@
 python-telegram-bot==20.7
 Flask
 Stripe
-Supabase
+supabase==2.0.0
 python-dotenv
+httpx==0.24.1
 
