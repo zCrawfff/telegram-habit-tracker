@@ -360,9 +360,23 @@ def main() -> None:
     # Callback query handler
     app.add_handler(CallbackQueryHandler(handle_completion))
     
-    # Run the bot
-    print("🤖 Bot is starting...")
-    app.run_polling()
+    # Run the bot with webhook
+    print("🤖 Bot is starting with webhook...")
+    
+    # Get the port from environment variable (Render provides this)
+    PORT = int(os.environ.get('PORT', 8443))
+    
+    # IMPORTANT: Replace 'your-app-name' with your actual Render app name
+    # Your Render URL will be: https://your-app-name.onrender.com
+    RENDER_APP_URL = os.environ.get('RENDER_EXTERNAL_URL') or 'https://telegram-habit-tracker.onrender.com'
+    
+    # Start webhook
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TELEGRAM_BOT_TOKEN,
+        webhook_url=f"{RENDER_APP_URL}/{TELEGRAM_BOT_TOKEN}"
+    )
 
 if __name__ == '__main__':
     main()
