@@ -648,14 +648,45 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data[f'time_{habit_id}'] = time_str
         
         # Go back to reminder setup
-        await query.edit_message_text(
-            f"✅ Reminder time set to {time_str}!\n\n"
-            "Going back to settings..."
-        )
+        try:
+            await query.edit_message_text(
+                f"✅ Reminder time set to {time_str}!\n\n"
+                "Going back to settings..."
+            )
+        except Exception as e:
+            # If message hasn't changed, answer the callback to remove loading state
+            await query.answer()
         
-        # Trigger the remind_setup callback
-        query.data = f'remind_setup_{habit_id}'
-        await handle_callback(update, context)
+        # Show the reminder setup menu
+        await asyncio.sleep(1)  # Brief pause for better UX
+        
+        # Get habit info
+        habit_result = supabase.table('habits').select("name").eq('id', habit_id).execute()
+        habit_name = habit_result.data[0]['name'] if habit_result.data else "Habit"
+        
+        # Get current settings
+        days = context.user_data.get(f'schedule_{habit_id}', [])
+        time = context.user_data.get(f'time_{habit_id}', 'Not set')
+        
+        keyboard = [
+            [InlineKeyboardButton("📅 Choose Days", callback_data=f'days_{habit_id}')],
+            [InlineKeyboardButton("⏰ Set Time", callback_data=f'time_{habit_id}')],
+            [InlineKeyboardButton("😑 Fallback Reminder", callback_data=f'fallback_{habit_id}')],
+            [InlineKeyboardButton("🔔 Toggle On/Off", callback_data=f'toggle_{habit_id}')],
+            [InlineKeyboardButton("💾 Save Settings", callback_data=f'save_reminder_{habit_id}')],
+            [InlineKeyboardButton("⬅ Back", callback_data=f'view_habit_{habit_id}')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.message.reply_text(
+            f"🔔 **Reminder Settings**\n\n"
+            f"Habit: {habit_name}\n\n"
+            f"📅 Days: {', '.join(days) if days else 'Not set'}\n"
+            f"⏰ Time: {time}\n\n"
+            "Choose an option:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
     
     elif query.data.startswith('customtime_'):
         habit_id = query.data.replace('customtime_', '')
@@ -795,28 +826,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup=reply_markup
         )
     
-    elif query.data.startswith('settings_language'):
-        # Create a multi-page language selection
-        keyboard = [
-            [InlineKeyboardButton("🇬🇧 English", callback_data='set_lang_en'),
-             InlineKeyboardButton("🇪🇸 Español", callback_data='set_lang_es')],
-            [InlineKeyboardButton("🇫🇷 Français", callback_data='set_lang_fr'),
-             InlineKeyboardButton("🇩🇪 Deutsch", callback_data='set_lang_de')],
-            [InlineKeyboardButton("🇮🇹 Italiano", callback_data='set_lang_it'),
-             InlineKeyboardButton("🇵🇹 Português", callback_data='set_lang_pt')],
-            [InlineKeyboardButton("🇷🇺 Русский", callback_data='set_lang_ru'),
-             InlineKeyboardButton("🇨🇳 中文", callback_data='set_lang_zh')],
-            [InlineKeyboardButton("🇯🇵 日本語", callback_data='set_lang_ja'),
-             InlineKeyboardButton("🇰🇷 한국어", callback_data='set_lang_ko')],
-            [InlineKeyboardButton("➡ More Languages", callback_data='settings_language_more')],
-            [InlineKeyboardButton("⬅ Back", callback_data='settings_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            "🌐 Select your language / Seleccione su idioma / Choisissez votre langue:",
-            reply_markup=reply_markup
-        )
-    
     elif query.data == 'settings_language_more':
         keyboard = [
             [InlineKeyboardButton("🇸🇦 العربية", callback_data='set_lang_ar'),
@@ -837,6 +846,28 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
             "🌐 Select your language:",
+            reply_markup=reply_markup
+        )
+    
+    elif query.data == 'settings_language':
+        # Create a multi-page language selection
+        keyboard = [
+            [InlineKeyboardButton("🇬🇧 English", callback_data='set_lang_en'),
+             InlineKeyboardButton("🇪🇸 Español", callback_data='set_lang_es')],
+            [InlineKeyboardButton("🇫🇷 Français", callback_data='set_lang_fr'),
+             InlineKeyboardButton("🇩🇪 Deutsch", callback_data='set_lang_de')],
+            [InlineKeyboardButton("🇮🇹 Italiano", callback_data='set_lang_it'),
+             InlineKeyboardButton("🇵🇹 Português", callback_data='set_lang_pt')],
+            [InlineKeyboardButton("🇷🇺 Русский", callback_data='set_lang_ru'),
+             InlineKeyboardButton("🇨🇳 中文", callback_data='set_lang_zh')],
+            [InlineKeyboardButton("🇯🇵 日本語", callback_data='set_lang_ja'),
+             InlineKeyboardButton("🇰🇷 한국어", callback_data='set_lang_ko')],
+            [InlineKeyboardButton("➡ More Languages", callback_data='settings_language_more')],
+            [InlineKeyboardButton("⬅ Back", callback_data='settings_back')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "🌐 Select your language / Seleccione su idioma / Choisissez votre langue:",
             reply_markup=reply_markup
         )
     
