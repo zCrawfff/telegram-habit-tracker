@@ -31,14 +31,18 @@ def stripe_webhook():
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
         telegram_user_id = session.get('metadata', {}).get('telegram_user_id')
+        tier = session.get('metadata', {}).get('tier', 'basic')  # Default to basic if not specified
         
         if telegram_user_id:
-            print(f"✅ Payment received for user {telegram_user_id}")
+            print(f"✅ Payment received for user {telegram_user_id} - Tier: {tier}")
             
-            # Update user to premium
+            # Update user to premium with correct tier
             try:
-                supabase.table('users').update({'is_premium': True}).eq('user_id', telegram_user_id).execute()
-                print(f"✅ User {telegram_user_id} upgraded to premium")
+                supabase.table('users').update({
+                    'is_premium': True,
+                    'subscription_tier': tier
+                }).eq('user_id', telegram_user_id).execute()
+                print(f"✅ User {telegram_user_id} upgraded to {tier} tier")
             except Exception as e:
                 print(f"❌ Error updating user {telegram_user_id}: {e}")
     

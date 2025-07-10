@@ -56,37 +56,43 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 if session_id:
                     # Verify the session with Stripe
                     session = stripe.checkout.Session.retrieve(session_id)
-                if session.payment_status == 'paid':
-                    # Determine which tier based on price ID
-                    if session.line_items and session.line_items.data:
-                        price_id = session.line_items.data[0].price.id
-                        if price_id == STRIPE_COACH_PRICE_ID:
-                            # Update user to coach tier
-                            supabase.table('users').update({
-                                'is_premium': True,
-                                'subscription_tier': 'coach'
-                            }).eq('user_id', user_id).execute()
-                            await update.message.reply_text(
-                                "🎉 Congratulations! You're now a Coach tier member!\n\n"
-                                "✨ You now have access to:\n"
-                                "• Unlimited habits\n"
-                                "• AI Habit Coach\n"
-                                "• All premium features\n\n"
-                                "Thank you for your support! 💙"
-                            )
-                        else:
-                            # Update user to basic premium
-                            supabase.table('users').update({
-                                'is_premium': True,
-                                'subscription_tier': 'basic'
-                            }).eq('user_id', user_id).execute()
-                            await update.message.reply_text(
-                                "🎉 Congratulations! You're now a Premium member!\n\n"
-                                "✨ You can now add unlimited habits and access all premium features.\n\n"
-                                "Thank you for your support! 💙"
-                            )
-                    context.user_data['pending_session_id'] = None
-                    return
+                    if session.payment_status == 'paid':
+                        # Retrieve the full session details with line items expanded
+                        session_with_items = stripe.checkout.Session.retrieve(
+                            session_id,
+                            expand=['line_items']
+                        )
+                        
+                        # Determine which tier based on price ID
+                        if session_with_items.line_items and session_with_items.line_items.data:
+                            price_id = session_with_items.line_items.data[0].price.id
+                            if price_id == STRIPE_COACH_PRICE_ID:
+                                # Update user to coach tier
+                                supabase.table('users').update({
+                                    'is_premium': True,
+                                    'subscription_tier': 'coach'
+                                }).eq('user_id', user_id).execute()
+                                await update.message.reply_text(
+                                    "🎉 Congratulations! You're now a Coach tier member!\n\n"
+                                    "✨ You now have access to:\n"
+                                    "• Unlimited habits\n"
+                                    "• AI Habit Coach\n"
+                                    "• All premium features\n\n"
+                                    "Thank you for your support! 💙"
+                                )
+                            else:
+                                # Update user to basic premium
+                                supabase.table('users').update({
+                                    'is_premium': True,
+                                    'subscription_tier': 'basic'
+                                }).eq('user_id', user_id).execute()
+                                await update.message.reply_text(
+                                    "🎉 Congratulations! You're now a Premium member!\n\n"
+                                    "✨ You can now add unlimited habits and access all premium features.\n\n"
+                                    "Thank you for your support! 💙"
+                                )
+                        context.user_data['pending_session_id'] = None
+                        return
             except Exception as e:
                 print(f"Error checking payment: {e}")
         elif context.args[0] == 'premium_cancel':
