@@ -796,11 +796,43 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     
     elif query.data.startswith('settings_language'):
+        # Create a multi-page language selection
         keyboard = [
-            [InlineKeyboardButton("🇬🇧 English", callback_data='set_lang_en')],
-            [InlineKeyboardButton("🇪🇸 Español", callback_data='set_lang_es')],
-            [InlineKeyboardButton("🇫🇷 Français", callback_data='set_lang_fr')],
+            [InlineKeyboardButton("🇬🇧 English", callback_data='set_lang_en'),
+             InlineKeyboardButton("🇪🇸 Español", callback_data='set_lang_es')],
+            [InlineKeyboardButton("🇫🇷 Français", callback_data='set_lang_fr'),
+             InlineKeyboardButton("🇩🇪 Deutsch", callback_data='set_lang_de')],
+            [InlineKeyboardButton("🇮🇹 Italiano", callback_data='set_lang_it'),
+             InlineKeyboardButton("🇵🇹 Português", callback_data='set_lang_pt')],
+            [InlineKeyboardButton("🇷🇺 Русский", callback_data='set_lang_ru'),
+             InlineKeyboardButton("🇨🇳 中文", callback_data='set_lang_zh')],
+            [InlineKeyboardButton("🇯🇵 日本語", callback_data='set_lang_ja'),
+             InlineKeyboardButton("🇰🇷 한국어", callback_data='set_lang_ko')],
+            [InlineKeyboardButton("➡ More Languages", callback_data='settings_language_more')],
             [InlineKeyboardButton("⬅ Back", callback_data='settings_back')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "🌐 Select your language / Seleccione su idioma / Choisissez votre langue:",
+            reply_markup=reply_markup
+        )
+    
+    elif query.data == 'settings_language_more':
+        keyboard = [
+            [InlineKeyboardButton("🇸🇦 العربية", callback_data='set_lang_ar'),
+             InlineKeyboardButton("🇮🇳 हिन्दी", callback_data='set_lang_hi')],
+            [InlineKeyboardButton("🇹🇷 Türkçe", callback_data='set_lang_tr'),
+             InlineKeyboardButton("🇳🇱 Nederlands", callback_data='set_lang_nl')],
+            [InlineKeyboardButton("🇵🇱 Polski", callback_data='set_lang_pl'),
+             InlineKeyboardButton("🇸🇪 Svenska", callback_data='set_lang_sv')],
+            [InlineKeyboardButton("🇺🇦 Українська", callback_data='set_lang_uk'),
+             InlineKeyboardButton("🇨🇿 Čeština", callback_data='set_lang_cs')],
+            [InlineKeyboardButton("🇩🇰 Dansk", callback_data='set_lang_da'),
+             InlineKeyboardButton("🇫🇮 Suomi", callback_data='set_lang_fi')],
+            [InlineKeyboardButton("🇭🇺 Magyar", callback_data='set_lang_hu'),
+             InlineKeyboardButton("🇷🇴 Română", callback_data='set_lang_ro')],
+            [InlineKeyboardButton("🇧🇬 Български", callback_data='set_lang_bg')],
+            [InlineKeyboardButton("⬅ Back", callback_data='settings_language')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
@@ -822,7 +854,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 'data': profile_data
             }).eq('user_id', user_id).execute()
             
-            lang_names = {'en': 'English', 'es': 'Español', 'fr': 'Français'}
+            lang_names = {
+                'en': 'English', 'es': 'Español', 'fr': 'Français', 'de': 'Deutsch',
+                'it': 'Italiano', 'pt': 'Português', 'ru': 'Русский', 'zh': '中文',
+                'ja': '日本語', 'ko': '한국어', 'ar': 'العربية', 'hi': 'हिन्दी',
+                'tr': 'Türkçe', 'nl': 'Nederlands', 'pl': 'Polski', 'sv': 'Svenska',
+                'uk': 'Українська', 'cs': 'Čeština', 'da': 'Dansk', 'fi': 'Suomi',
+                'hu': 'Magyar', 'ro': 'Română', 'bg': 'Български'
+            }
             await query.edit_message_text(f"✅ Language changed to {lang_names.get(lang, lang)}!")
             
         except Exception as e:
