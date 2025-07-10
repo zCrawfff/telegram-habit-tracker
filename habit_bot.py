@@ -1196,49 +1196,9 @@ def main() -> None:
     # Callback query handler
     app.add_handler(CallbackQueryHandler(handle_callback))
     
-    # Schedule daily job for reminders
-    async def send_daily_reminders(context: ContextTypes.DEFAULT_TYPE):
-        try:
-            # Fetch habits that need a reminder
-            today_weekday = datetime.now().strftime('%a')
-            reminders = supabase.table('habits').select("*").eq('reminder_enabled', True).execute()
-            
-            for habit in reminders.data:
-                # Check for pause period
-                pause_result = supabase.table('habit_pauses').select("*")\
-                    .eq('habit_id', habit['id'])\
-                    .gte('start_date', datetime.now().date())\
-                    .lte('end_date', datetime.now().date()).execute()
-                if pause_result.data:
-                    continue
-                
-                user_id = habit['user_id']
-                reminder_time = habit['reminder_time'] or time(9, 0)  # Default 9 AM
-                now_utc = datetime.now(pytz.utc)
-                local_time = now_utc.astimezone(pytz.timezone(habit['timezone'] or 'UTC'))
-                
-                # Send reminder if it's time
-                if local_time.time() >= reminder_time:
-                    # Check last reminder
-                    last_reminder_result = supabase.table('reminders_sent').select("sent_at").eq('habit_id', habit['id']).eq('reminder_type', 'daily').order('sent_at', desc=True).limit(1).execute()
-                    last_reminder_time = last_reminder_result.data[0]['sent_at'] if last_reminder_result.data else None
-                    
-                    if not last_reminder_time or (now_utc - last_reminder_time).total_seconds() > 86400:  # 24 hours
-                        # Send reminder
-                        app.bot.send_message(chat_id=user_id, text=f"⏰ Reminder: Don't forget to complete your habit '{habit['name']}' today!")
-                        # Log reminder
-                        supabase.table('reminders_sent').insert({
-                            'user_id': user_id,
-                            'habit_id': habit['id'],
-                            'reminder_type': 'daily',
-                        }).execute()
-        except Exception as e:
-            print(f"Error sending reminders: {e}")
-            
-    # Set up job queue
-    job_queue = app.job_queue
-    job_queue.run_daily(send_daily_reminders, time(9, 0), days=(0, 1, 2, 3, 4, 5, 6))
-    job_queue.start()
+    # Note: Job Queue doesn't work well with webhooks
+    # Use the separate send_reminders.py script with a cron job instead
+    # See send_reminders.py for the reminder implementation
     
     # Run the bot with webhook
     print("🤖 Bot is starting with webhook...")
