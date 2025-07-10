@@ -797,7 +797,7 @@ async def upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
 
 # Manage settings
-async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) - 3e None:
+async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.effective_user.id)
     
     try:
@@ -1132,8 +1132,8 @@ async def list_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         message += "/remind - Set up habit reminders\n"
         message += "/pause - Pause habits for vacation\n\n"
         
-        message += "📊 **Progress  26 Stats**\n"
-        message += "/stats - View your XP, level  26 stats\n\n"
+        message += "📊 **Progress & Stats**\n"
+        message += "/stats - View your XP, level & stats\n\n"
         
         if subscription_tier == 'coach':
             message += "💪 **Coach Tier Features**\n"
@@ -1173,7 +1173,7 @@ async def list_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 # Main function
-def main() - 3e None:
+def main() -> None:
     # Create application
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     
@@ -1191,7 +1191,7 @@ def main() - 3e None:
     app.add_handler(CommandHandler("pause", pause_habit))
     
     # Message handler
-    app.add_handler(MessageHandler(filters.TEXT  26 ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Callback query handler
     app.add_handler(CallbackQueryHandler(handle_callback))
@@ -1205,10 +1205,10 @@ def main() - 3e None:
             
             for habit in reminders.data:
                 # Check for pause period
-                pause_result = supabase.table('habit_pauses').select("*").
-                    eq('habit_id', habit['id']).
-                    gte('start_date', datetime.now().date()).
-                    lte('end_date', datetime.now().date()).execute()
+                pause_result = supabase.table('habit_pauses').select("*")\
+                    .eq('habit_id', habit['id'])\
+                    .gte('start_date', datetime.now().date())\
+                    .lte('end_date', datetime.now().date()).execute()
                 if pause_result.data:
                     continue
                 
