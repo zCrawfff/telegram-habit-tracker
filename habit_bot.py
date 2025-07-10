@@ -264,6 +264,43 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
         return
     
+    # Check if setting timezone
+    if context.user_data.get('setting_timezone'):
+        try:
+            # Validate timezone
+            test_tz = pytz.timezone(text)
+            
+            # Update user profile
+            profile_result = supabase.table('profiles').select("data").eq('user_id', user_id).execute()
+            profile_data = profile_result.data[0]['data']
+            profile_data['timezone'] = text
+            
+            supabase.table('profiles').update({
+                'data': profile_data
+            }).eq('user_id', user_id).execute()
+            
+            # Also update users table for reminders
+            supabase.table('users').update({
+                'timezone': text
+            }).eq('user_id', user_id).execute()
+            
+            context.user_data.pop('setting_timezone', None)
+            
+            await update.message.reply_text(
+                f"✅ Timezone updated to {text}!\n\n"
+                f"All your reminders will now use this timezone."
+            )
+            
+        except pytz.exceptions.UnknownTimeZoneError:
+            await update.message.reply_text(
+                "❌ Invalid timezone!\n\n"
+                "Please use a valid timezone like:\n"
+                "• Europe/London\n"
+                "• America/New_York\n"
+                "• UTC"
+            )
+        return
+    
     # Original habit adding logic
     if context.user_data.get('adding_habit'):
         habit_name = text
@@ -683,6 +720,88 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup=reply_markup
         )
     
+    elif query.data.startswith('settings_language'):
+        keyboard = [
+            [InlineKeyboardButton("🇬🇧 English", callback_data='set_lang_en')],
+            [InlineKeyboardButton("🇪🇸 Español", callback_data='set_lang_es')],
+            [InlineKeyboardButton("🇫🇷 Français", callback_data='set_lang_fr')],
+            [InlineKeyboardButton("⬅ Back", callback_data='settings_back')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "🌐 Select your language:",
+            reply_markup=reply_markup
+        )
+    
+    elif query.data.startswith('set_lang_'):
+        lang = query.data.replace('set_lang_', '')
+        user_id = str(query.from_user.id)
+        
+        try:
+            # Update language in profile
+            profile_result = supabase.table('profiles').select("data").eq('user_id', user_id).execute()
+            profile_data = profile_result.data[0]['data']
+            profile_data['language'] = lang
+            
+            supabase.table('profiles').update({
+                'data': profile_data
+            }).eq('user_id', user_id).execute()
+            
+            lang_names = {'en': 'English', 'es': 'Español', 'fr': 'Français'}
+            await query.edit_message_text(f"✅ Language changed to {lang_names.get(lang, lang)}!")
+            
+        except Exception as e:
+            await query.edit_message_text("❌ Error updating language.")
+            print(f"Error setting language: {e}")
+    
+    elif query.data.startswith('settings_timezone'):
+        await query.edit_message_text(
+            "🕒 **Set Timezone**\n\n"
+            "Please send your timezone in format:\n"
+            "• `Europe/London`\n"
+            "• `America/New_York`\n"
+            "• `Asia/Tokyo`\n\n"
+            "Common timezones:\n"
+            "• UTC\n"
+            "• Europe/London\n"
+            "• America/New_York\n"
+            "• America/Los_Angeles\n"
+            "• Asia/Singapore",
+            parse_mode='Markdown'
+        )
+        context.user_data['setting_timezone'] = True
+    
+    elif query.data == 'settings_back':
+        # Go back to main settings
+        user_id = str(query.from_user.id)
+        try:
+            # Retrieve user profile
+            profile_result = supabase.table('profiles').select("data").eq('user_id', user_id).execute()
+            if not profile_result.data:
+                await query.edit_message_text("❌ Profile not found. Please use /start first.")
+                return
+            
+            profile_data = profile_result.data[0]['data']
+            language = profile_data.get('language', 'en')
+            timezone = profile_data.get('timezone', 'UTC')
+            
+            # Create inline keyboard for settings
+            keyboard = [
+                [InlineKeyboardButton("🌐 Change Language", callback_data='settings_language')],
+                [InlineKeyboardButton("🕒 Change Timezone", callback_data='settings_timezone')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            message = "🔧 **Settings**\n\n"
+            message += f"🌐 Language: {language}\n"
+            message += f"🕒 Timezone: {timezone}\n\n"
+            message += "Choose what you'd like to change:"
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+        except Exception as e:
+            print(f"Error in settings_back: {e}")
+            await query.edit_message_text("❌ Error loading settings.")
+    
     elif query.data.startswith('complete_'):
         habit_id = query.data.replace('complete_', '')
         user_id = str(query.from_user.id)
@@ -814,8 +933,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Create inline keyboard for settings
         keyboard = [
             [InlineKeyboardButton("🌐 Change Language", callback_data='settings_language')],
-            [InlineKeyboardButton("🕒 Change Timezone", callback_data='settings_timezone')],
-            [InlineKeyboardButton("🔄 Reset Progress", callback_data='settings_reset')]
+            [InlineKeyboardButton("🕒 Change Timezone", callback_data='settings_timezone')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -1085,6 +1203,15 @@ async def pause_habit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         
         if start_date > end_date:
             await update.message.reply_text("❌ Start date must be before end date!")
+            return
+        
+        # Check maximum 3 weeks
+        duration = (end_date - start_date).days
+        if duration > 21:  # 3 weeks
+            await update.message.reply_text(
+                "❌ Pause period cannot exceed 3 weeks (21 days)!\n\n"
+                "For longer breaks, consider deactivating habits instead."
+            )
             return
         
         # Get all user habits
