@@ -516,14 +516,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         # Get current days or defaults
         schedule_key = f'schedule_{habit_id}'
-        schedule_result = supabase.table('habit_schedules').select("days").eq('habit_id', habit_id).execute()
         
-        if schedule_result.data:
-            selected_days = schedule_result.data[0]['days']
+        # Check if we already have days in context
+        if schedule_key not in context.user_data:
+            # If not, check database
+            schedule_result = supabase.table('habit_schedules').select("days").eq('habit_id', habit_id).execute()
+            
+            if schedule_result.data:
+                selected_days = schedule_result.data[0]['days']
+            else:
+                # Default to weekdays
+                selected_days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+            
+            context.user_data[schedule_key] = selected_days
         else:
-            selected_days = context.user_data.get(schedule_key, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
-        
-        context.user_data[schedule_key] = selected_days
+            selected_days = context.user_data[schedule_key]
         
         keyboard = [
             [InlineKeyboardButton(f"{'✅' if 'Mon' in selected_days else '⬜'} Mon", callback_data=f'day_Mon_{habit_id}'),
@@ -563,21 +570,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         # Refresh the keyboard
         keyboard = [
-            [InlineKeyboardButton(f"{'✅ ' if 'Mon' in selected_days else ''}Mon", callback_data=f'day_Mon_{habit_id}'),
-             InlineKeyboardButton(f"{'✅ ' if 'Tue' in selected_days else ''}Tue", callback_data=f'day_Tue_{habit_id}'),
-             InlineKeyboardButton(f"{'✅ ' if 'Wed' in selected_days else ''}Wed", callback_data=f'day_Wed_{habit_id}')],
-            [InlineKeyboardButton(f"{'✅ ' if 'Thu' in selected_days else ''}Thu", callback_data=f'day_Thu_{habit_id}'),
-             InlineKeyboardButton(f"{'✅ ' if 'Fri' in selected_days else ''}Fri", callback_data=f'day_Fri_{habit_id}'),
-             InlineKeyboardButton(f"{'✅ ' if 'Sat' in selected_days else ''}Sat", callback_data=f'day_Sat_{habit_id}')],
-            [InlineKeyboardButton(f"{'✅ ' if 'Sun' in selected_days else ''}Sun", callback_data=f'day_Sun_{habit_id}')],
-            [InlineKeyboardButton("💾 Save Schedule", callback_data=f'save_schedule_{habit_id}')]
+            [InlineKeyboardButton(f"{'✅' if 'Mon' in selected_days else '⬜'} Mon", callback_data=f'day_Mon_{habit_id}'),
+             InlineKeyboardButton(f"{'✅' if 'Tue' in selected_days else '⬜'} Tue", callback_data=f'day_Tue_{habit_id}'),
+             InlineKeyboardButton(f"{'✅' if 'Wed' in selected_days else '⬜'} Wed", callback_data=f'day_Wed_{habit_id}')],
+            [InlineKeyboardButton(f"{'✅' if 'Thu' in selected_days else '⬜'} Thu", callback_data=f'day_Thu_{habit_id}'),
+             InlineKeyboardButton(f"{'✅' if 'Fri' in selected_days else '⬜'} Fri", callback_data=f'day_Fri_{habit_id}'),
+             InlineKeyboardButton(f"{'✅' if 'Sat' in selected_days else '⬜'} Sat", callback_data=f'day_Sat_{habit_id}')],
+            [InlineKeyboardButton(f"{'✅' if 'Sun' in selected_days else '⬜'} Sun", callback_data=f'day_Sun_{habit_id}')],
+            [InlineKeyboardButton("✅ Done", callback_data=f'remind_setup_{habit_id}')]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
-            "Select the days for this habit (tap to toggle):\n\n"
-            f"Currently selected: {', '.join(selected_days) or 'None'}",
-            reply_markup=reply_markup
+            "📅 **Select Days**\n\n"
+            "When should we remind you about this habit?\n\n"
+            f"Selected: {', '.join(selected_days) or 'None'}",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
         )
     
     elif query.data.startswith('time_'):
