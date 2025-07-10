@@ -1,5 +1,8 @@
-   Flask
-   Stripe
-   supabase
-   python-dotenv
-   python-telegram-bot[webhooks]
+Flask
+Stripe
+supabase
+python-dotenv
+python-telegram-bot[webhooks]
+openai
+pytz
+
