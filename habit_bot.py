@@ -12,6 +12,15 @@ import pytz
 
 load_dotenv()
 
+# Load translations
+with open('translations.json', 'r') as f:
+    translations = json.load(f)
+
+def get_translation(user_language, key, **kwargs):
+    # Default to English if language is not supported
+    lang = translations.get(user_language, translations['en'])
+    return lang.get(key, '').format(**kwargs)
+
 # Environment variables
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -111,18 +120,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 }
             }).execute()
             
-            welcome_message = f"🎉 Welcome to Habit Tracker Bot, {user_name}!\n\n"
-            welcome_message += "I'll help you build better habits and track your progress.\n\n"
-            welcome_message += "📋 Available commands:\n"
-            welcome_message += "/addhabit - Add a new habit\n"
-            welcome_message += "/habits - View your habits\n"
-            welcome_message += "/complete - Mark habit as complete\n"
-            welcome_message += "/stats - View your XP and level\n"
-            welcome_message += "/upgrade - Upgrade to premium\n"
-        else:
-            welcome_message = f"👋 Welcome back, {user_name}!\n\n"
-            welcome_message += "Ready to continue your habit journey?\n"
-            welcome_message += "Use /habits to see your current habits."
+language = None
+        if result.data:
+            language = result.data[0]['data'].get('language', 'en')
+        
+        welcome_message = get_translation(language, "welcome_new", name=user_name) + "\n\n"
+        welcome_message += get_translation(language, "commands_info") + "\n"
+        welcome_message += "/addhabit - " + get_translation(language, "add_habit") + "\n"
+        welcome_message += "/habits - " + get_translation(language, "commands_info") + "\n"
+        welcome_message += "/complete - " + get_translation(language, "commands_info") + "\n"
+        welcome_message += "/stats - " + get_translation(language, "commands_info") + "\n"
+        welcome_message += "/upgrade - " + get_translation(language, "commands_info") + "\n"
+    else:
+        language = 'en'  # Default to English for new users
+        welcome_message = get_translation(language, "welcome_back", name=user_name) + "\n\n"
+        welcome_message += "Ready to continue your habit journey?\n"
+        welcome_message += "Use /habits to see your current habits."
+    
             
     except Exception as e:
         welcome_message = "❌ There was an error setting up your account. Please make sure the bot is properly configured."
@@ -592,16 +606,65 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif query.data.startswith('time_'):
         habit_id = query.data.replace('time_', '')
         
-        # Set up time selection
-        context.user_data[f'setting_time_{habit_id}'] = True
+        # Show time selection grid
+        keyboard = [
+            [InlineKeyboardButton("🌅 6:00", callback_data=f'settime_06:00_{habit_id}'),
+             InlineKeyboardButton("☀️ 7:00", callback_data=f'settime_07:00_{habit_id}'),
+             InlineKeyboardButton("🍳 8:00", callback_data=f'settime_08:00_{habit_id}')],
+            [InlineKeyboardButton("💼 9:00", callback_data=f'settime_09:00_{habit_id}'),
+             InlineKeyboardButton("☕ 10:00", callback_data=f'settime_10:00_{habit_id}'),
+             InlineKeyboardButton("🌞 12:00", callback_data=f'settime_12:00_{habit_id}')],
+            [InlineKeyboardButton("🍕 14:00", callback_data=f'settime_14:00_{habit_id}'),
+             InlineKeyboardButton("🎉 17:00", callback_data=f'settime_17:00_{habit_id}'),
+             InlineKeyboardButton("🌃 19:00", callback_data=f'settime_19:00_{habit_id}')],
+            [InlineKeyboardButton("🌙 20:00", callback_data=f'settime_20:00_{habit_id}'),
+             InlineKeyboardButton("🌜 21:00", callback_data=f'settime_21:00_{habit_id}'),
+             InlineKeyboardButton("😴 22:00", callback_data=f'settime_22:00_{habit_id}')],
+            [InlineKeyboardButton("🕒 Custom Time", callback_data=f'customtime_{habit_id}')],
+            [InlineKeyboardButton("⬅ Back", callback_data=f'remind_setup_{habit_id}')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Get current time if set
+        current_time = context.user_data.get(f'time_{habit_id}', 'Not set')
         
         await query.edit_message_text(
             "⏰ **Set Reminder Time**\n\n"
+            f"Current time: {current_time}\n\n"
+            "Choose when you want to be reminded:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    elif query.data.startswith('settime_'):
+        parts = query.data.split('_')
+        time_str = parts[1]
+        habit_id = parts[2]
+        
+        # Save the selected time
+        context.user_data[f'time_{habit_id}'] = time_str
+        
+        # Go back to reminder setup
+        await query.edit_message_text(
+            f"✅ Reminder time set to {time_str}!\n\n"
+            "Going back to settings..."
+        )
+        
+        # Trigger the remind_setup callback
+        query.data = f'remind_setup_{habit_id}'
+        await handle_callback(update, context)
+    
+    elif query.data.startswith('customtime_'):
+        habit_id = query.data.replace('customtime_', '')
+        context.user_data[f'setting_time_{habit_id}'] = True
+        
+        await query.edit_message_text(
+            "⏰ **Custom Time**\n\n"
             "Please send the time in 24-hour format (HH:MM).\n\n"
             "Examples:\n"
-            "• `09:00` for 9:00 AM\n"
-            "• `21:00` for 9:00 PM\n"
-            "• `13:30` for 1:30 PM",
+            "• `09:30` for 9:30 AM\n"
+            "• `15:45` for 3:45 PM\n"
+            "• `23:15` for 11:15 PM",
             parse_mode='Markdown'
         )
         

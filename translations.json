@@ -1,0 +1,18 @@
+{
+  "en": {
+    "welcome_new": "🎉 Welcome to Habit Tracker Bot, {name}!",
+    "welcome_back": "👋 Welcome back, {name}!",
+    "commands_info": "Available commands:",
+    "add_habit": "📝 Let's add a new habit!\n\nWhat habit would you like to track?",
+    "error": "❌ Error",
+    "premium_success": "🎉 Congratulations! You're now a Premium member!"
+  },
+  "es": {
+    "welcome_new": "🎉 ¡Bienvenido al Bot de Seguimiento de Hábitos, {name}!",
+    "welcome_back": "👋 ¡Bienvenido de nuevo, {name}!",
+    "commands_info": "Comandos disponibles:",
+    "add_habit": "📝 ¡Vamos a añadir un nuevo hábito!\n\n¿Qué hábito te gustaría controlar?",
+    "error": "❌ Error",
+    "premium_success": "🎉 ¡Felicitaciones! ¡Ahora eres un miembro Premium!"
+  }
+}
