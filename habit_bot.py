@@ -1187,9 +1187,16 @@ async def coach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             
             try:
                 # Validate the question first
+                print(f"Initializing OpenAI client...")
+                print(f"API Key present: {bool(OPENAI_API_KEY)}")
+                print(f"API Key length: {len(OPENAI_API_KEY) if OPENAI_API_KEY else 0}")
+                
                 client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                print(f"OpenAI client created successfully")
+                
+                print(f"Attempting validation call...")
                 validation = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="gpt-4o-mini",  # Cheapest model available
                     messages=[
                         {"role": "system", "content": validation_prompt},
                         {"role": "user", "content": question}
@@ -1197,6 +1204,7 @@ async def coach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     max_tokens=10,
                     temperature=0
                 )
+                print(f"Validation call successful")
                 
                 is_valid = validation.choices[0].message.content.strip().upper() == 'YES'
                 
@@ -1231,30 +1239,49 @@ async def coach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 
                 user_context = f"User's current habits: {', '.join(habit_names)}" if habit_names else "User has no habits yet"
                 
-                # Call OpenAI API for the actual coaching response
-                try:
-                    # Try GPT-4 first
-                    completion = client.chat.completions.create(
-                        model="gpt-4",
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": f"{user_context}\n\nQuestion: {question}"}
-                        ],
-                        max_tokens=500,
-                        temperature=0.7
-                    )
-                except Exception as gpt4_error:
-                    print(f"GPT-4 failed, falling back to GPT-3.5: {gpt4_error}")
-                    # Fallback to GPT-3.5-turbo
-                    completion = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": f"{user_context}\n\nQuestion: {question}"}
-                        ],
-                        max_tokens=500,
-                        temperature=0.7
-                    )
+                # Call OpenAI API with retry logic for rate limits
+                max_retries = 3
+                retry_delay = 1
+                completion = None
+                
+                for attempt in range(max_retries):
+                    try:
+                        # Try gpt-4o-mini first (cheapest and newest)
+                        try:
+                            completion = client.chat.completions.create(
+                                model="gpt-4o-mini",
+                                messages=[
+                                    {"role": "system", "content": system_prompt},
+                                    {"role": "user", "content": f"{user_context}\n\nQuestion: {question}"}
+                                ],
+                                max_tokens=500,
+                                temperature=0.7
+                            )
+                            break  # Success, exit retry loop
+                        except Exception as mini_error:
+                            # Fallback to GPT-3.5-turbo if mini model not available
+                            print(f"gpt-4o-mini failed, falling back to gpt-3.5-turbo: {mini_error}")
+                            completion = client.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=[
+                                    {"role": "system", "content": system_prompt},
+                                    {"role": "user", "content": f"{user_context}\n\nQuestion: {question}"}
+                                ],
+                                max_tokens=500,
+                                temperature=0.7
+                            )
+                            break  # Success, exit retry loop
+                    except openai.RateLimitError as rate_error:
+                        if attempt < max_retries - 1:
+                            print(f"Rate limit hit, retrying in {retry_delay} seconds...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            raise rate_error  # Re-raise on final attempt
+                    except Exception as e:
+                        print(f"OpenAI API error attempt {attempt + 1}: {e}")
+                        if attempt == max_retries - 1:
+                            raise e  # Re-raise on final attempt
                 
                 response_text = completion.choices[0].message.content
                 
@@ -1281,32 +1308,77 @@ async def coach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 response = f"🤖 **AI Coach says:**\n\n{response_text}\n\n"
                 response += f"_Sessions today: {sessions_used + 1}/{DAILY_COACH_LIMIT}_"
                 
-            except openai.AuthenticationError as e:
-                print(f"OpenAI Authentication error: {e}")
-                response = (
-                    "🔑 **Configuration Issue**\n\n"
-                    "The AI Coach needs to be configured with a valid OpenAI API key.\n\n"
-                    "Please contact the bot administrator to set this up."
-                )
-            except openai.RateLimitError as e:
+            except Exception as e:
+                # Check specific error types
+                error_type = type(e).__name__
+                print(f"OpenAI error type: {error_type}")
+                print(f"OpenAI error: {e}")
+                
+                if hasattr(openai, 'AuthenticationError') and isinstance(e, openai.AuthenticationError):
+                    response = (
+                        "🔑 **Configuration Issue**\n\n"
+                        "The AI Coach needs to be configured with a valid OpenAI API key.\n\n"
+                        "Please contact the bot administrator to set this up."
+                    )
+                elif hasattr(openai, 'RateLimitError') and isinstance(e, openai.RateLimitError):
                 print(f"OpenAI Rate limit error: {e}")
+                # Try to extract wait time from error message
+                wait_time = "a few moments"
+                error_msg = str(e)
+                if "Please try again in" in error_msg:
+                    import re
+                    match = re.search(r'Please try again in (\d+)s', error_msg)
+                    if match:
+                        seconds = int(match.group(1))
+                        if seconds < 60:
+                            wait_time = f"{seconds} seconds"
+                        else:
+                            wait_time = f"{seconds // 60} minutes"
+                
                 response = (
                     "⏱️ **Rate Limit Reached**\n\n"
-                    "The AI is taking a quick breather due to high demand.\n\n"
-                    "Please try again in a few moments!"
+                    "OpenAI is experiencing high demand. This usually happens when:\n"
+                    "• Many users are asking questions at once\n"
+                    "• Your API key has reached its usage limit\n\n"
+                    f"**Please try again in {wait_time}!**\n\n"
+                    "💡 While you wait, here's a quick tip:\n"
+                    "_The best time to build a habit is right after an existing routine. "
+                    "Stack your new habit on top of something you already do!_"
                 )
-            except Exception as e:
-                print(f"OpenAI API error: {e}")
-                print(f"Error type: {type(e)}")
-                print(f"Error details: {str(e)}")
-                # Fallback to helpful response
-                response = (
-                    "⚠️ I'm having trouble connecting to my AI brain right now.\n\n"
-                    f"Error: {str(e)[:100]}...\n\n"
-                    "**Quick tip while I fix this:**\n"
-                    "Start small with your habits! Even 2 minutes a day is better than nothing. "
-                    "Consistency beats perfection every time."
-                )
+                elif 'Rate limit' in str(e) or 'rate_limit' in str(e).lower():
+                    # Handle rate limit errors that might not be the specific exception type
+                    response = (
+                        "⏱️ **Rate Limit Reached**\n\n"
+                        "OpenAI is experiencing high demand. This usually happens when:\n"
+                        "• Many users are asking questions at once\n"
+                        "• Your API key has reached its usage limit\n\n"
+                        "**Please try again in a few moments!**\n\n"
+                        "💡 While you wait, here's a quick tip:\n"
+                        "_The best time to build a habit is right after an existing routine. "
+                        "Stack your new habit on top of something you already do!_"
+                    )
+                elif 'insufficient_quota' in str(e) or 'exceeded your current quota' in str(e).lower():
+                    # Handle quota exceeded errors
+                    response = (
+                        "💳 **OpenAI Quota Exceeded**\n\n"
+                        "The AI Coach's OpenAI account has run out of credits.\n\n"
+                        "⚠️ **Bot admin action needed:**\n"
+                        "• Add credits to the OpenAI account\n"
+                        "• Set up billing at platform.openai.com\n\n"
+                        "**In the meantime, here's a habit tip:**\n"
+                        "_Start with tiny habits - even 2 minutes counts! "
+                        "Success builds momentum, and momentum builds habits._"
+                    )
+                else:
+                    # General error fallback
+                    response = (
+                        "⚠️ I'm having trouble connecting to my AI brain right now.\n\n"
+                        f"Error type: {error_type}\n"
+                        f"Error: {str(e)[:200]}\n\n"
+                        "**Quick tip while I fix this:**\n"
+                        "Start small with your habits! Even 2 minutes a day is better than nothing. "
+                        "Consistency beats perfection every time."
+                    )
             
             await update.message.reply_text(response, parse_mode='Markdown')
         else:
