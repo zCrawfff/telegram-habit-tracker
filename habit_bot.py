@@ -1321,30 +1321,30 @@ async def coach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                         "Please contact the bot administrator to set this up."
                     )
                 elif hasattr(openai, 'RateLimitError') and isinstance(e, openai.RateLimitError):
-                print(f"OpenAI Rate limit error: {e}")
-                # Try to extract wait time from error message
-                wait_time = "a few moments"
-                error_msg = str(e)
-                if "Please try again in" in error_msg:
-                    import re
-                    match = re.search(r'Please try again in (\d+)s', error_msg)
-                    if match:
-                        seconds = int(match.group(1))
-                        if seconds < 60:
-                            wait_time = f"{seconds} seconds"
-                        else:
-                            wait_time = f"{seconds // 60} minutes"
-                
-                response = (
-                    "⏱️ **Rate Limit Reached**\n\n"
-                    "OpenAI is experiencing high demand. This usually happens when:\n"
-                    "• Many users are asking questions at once\n"
-                    "• Your API key has reached its usage limit\n\n"
-                    f"**Please try again in {wait_time}!**\n\n"
-                    "💡 While you wait, here's a quick tip:\n"
-                    "_The best time to build a habit is right after an existing routine. "
-                    "Stack your new habit on top of something you already do!_"
-                )
+                    print(f"OpenAI Rate limit error: {e}")
+                    # Try to extract wait time from error message
+                    wait_time = "a few moments"
+                    error_msg = str(e)
+                    if "Please try again in" in error_msg:
+                        import re
+                        match = re.search(r'Please try again in (\d+)s', error_msg)
+                        if match:
+                            seconds = int(match.group(1))
+                            if seconds < 60:
+                                wait_time = f"{seconds} seconds"
+                            else:
+                                wait_time = f"{seconds // 60} minutes"
+                    
+                    response = (
+                        "⏱️ **Rate Limit Reached**\n\n"
+                        "OpenAI is experiencing high demand. This usually happens when:\n"
+                        "• Many users are asking questions at once\n"
+                        "• Your API key has reached its usage limit\n\n"
+                        f"**Please try again in {wait_time}!**\n\n"
+                        "💡 While you wait, here's a quick tip:\n"
+                        "_The best time to build a habit is right after an existing routine. "
+                        "Stack your new habit on top of something you already do!_"
+                    )
                 elif 'Rate limit' in str(e) or 'rate_limit' in str(e).lower():
                     # Handle rate limit errors that might not be the specific exception type
                     response = (
