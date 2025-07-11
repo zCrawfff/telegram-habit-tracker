@@ -73,12 +73,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                                     'subscription_tier': 'coach'
                                 }).eq('user_id', user_id).execute()
                                 await update.message.reply_text(
-                                    "🎉 Congratulations! You're now a Coach tier member!\n\n"
-                                    "✨ You now have access to:\n"
-                                    "• Unlimited habits\n"
-                                    "• AI Habit Coach\n"
-                                    "• All premium features\n\n"
-                                    "Thank you for your support! 💙"
+                                    "🎆 **WELCOME TO COACH TIER!** 🎆\n\n"
+                                    "You've just unlocked the ULTIMATE habit transformation experience! 🚀\n\n"
+                                    "✨ **Your Coach Tier Superpowers:**\n"
+                                    "• 🤖 **AI Habit Coach** - Your personal habit expert available 24/7\n"
+                                    "• ♾️ **Unlimited Habits** - Track as many as you want\n"
+                                    "• 🔔 **Smart Reminders** - Custom times for each habit\n"
+                                    "• 📈 **Advanced Analytics** - Deep insights into your progress\n"
+                                    "• 🏆 **XP & Levels** - Gamified motivation system\n"
+                                    "• 🌍 **24 Languages** - Use the bot in your preferred language\n"
+                                    "• ⏸️ **Pause Mode** - Take breaks without losing streaks\n\n"
+                                    "🔥 **Get Started:**\n"
+                                    "• Try /coach to chat with your AI habit expert\n"
+                                    "• Use /addhabit to start building new habits\n"
+                                    "• Set custom /remind times for each habit\n\n"
+                                    "Let's build life-changing habits together! 💪\n\n"
+                                    "Thank you for believing in your potential! 💙",
+                                    parse_mode='Markdown'
                                 )
                             else:
                                 # Update user to basic premium
@@ -1221,15 +1232,29 @@ async def coach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 user_context = f"User's current habits: {', '.join(habit_names)}" if habit_names else "User has no habits yet"
                 
                 # Call OpenAI API for the actual coaching response
-                completion = client.chat.completions.create(
-                    model="gpt-4-turbo-preview",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"{user_context}\n\nQuestion: {question}"}
-                    ],
-                    max_tokens=500,
-                    temperature=0.7
-                )
+                try:
+                    # Try GPT-4 first
+                    completion = client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": f"{user_context}\n\nQuestion: {question}"}
+                        ],
+                        max_tokens=500,
+                        temperature=0.7
+                    )
+                except Exception as gpt4_error:
+                    print(f"GPT-4 failed, falling back to GPT-3.5: {gpt4_error}")
+                    # Fallback to GPT-3.5-turbo
+                    completion = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": f"{user_context}\n\nQuestion: {question}"}
+                        ],
+                        max_tokens=500,
+                        temperature=0.7
+                    )
                 
                 response_text = completion.choices[0].message.content
                 
@@ -1247,16 +1272,39 @@ async def coach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 except Exception as log_error:
                     print(f"Error logging conversation: {log_error}")
                 
-                # Add coach prefix
-                response = f"🤖 **AI Coach says:**\n\n{response_text}"
+                # Update session count
+                supabase.table('users').update({
+                    'coach_sessions_used': sessions_used + 1
+                }).eq('user_id', user_id).execute()
                 
+                # Add coach prefix
+                response = f"🤖 **AI Coach says:**\n\n{response_text}\n\n"
+                response += f"_Sessions today: {sessions_used + 1}/{DAILY_COACH_LIMIT}_"
+                
+            except openai.AuthenticationError as e:
+                print(f"OpenAI Authentication error: {e}")
+                response = (
+                    "🔑 **Configuration Issue**\n\n"
+                    "The AI Coach needs to be configured with a valid OpenAI API key.\n\n"
+                    "Please contact the bot administrator to set this up."
+                )
+            except openai.RateLimitError as e:
+                print(f"OpenAI Rate limit error: {e}")
+                response = (
+                    "⏱️ **Rate Limit Reached**\n\n"
+                    "The AI is taking a quick breather due to high demand.\n\n"
+                    "Please try again in a few moments!"
+                )
             except Exception as e:
                 print(f"OpenAI API error: {e}")
+                print(f"Error type: {type(e)}")
+                print(f"Error details: {str(e)}")
                 # Fallback to helpful response
                 response = (
                     "⚠️ I'm having trouble connecting to my AI brain right now.\n\n"
-                    "Here's a quick tip: Start small with your habits! "
-                    "Even 2 minutes a day is better than nothing. "
+                    f"Error: {str(e)[:100]}...\n\n"
+                    "**Quick tip while I fix this:**\n"
+                    "Start small with your habits! Even 2 minutes a day is better than nothing. "
                     "Consistency beats perfection every time."
                 )
             
